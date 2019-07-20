@@ -60,20 +60,38 @@ func handleClient(conn *net.UDPConn) {
 	case "New":
 		remoteAddr := fmt.Sprintf("%s:%d", addr.IP, addr.Port)
 		fmt.Println(remoteAddr, "connecting")
-		userIP[chatRequest.Username] = remoteAddr
-
-		// Send message back
-		messageRequest := ChatRequest{
-			"Chat",
-			chatRequest.Username,
-			remoteAddr,
+		var messageRequest ChatRequest
+		if _, ok := userIP[chatRequest.Username]; ok {
+			fmt.Println("PEER ID ALREADY IN USE")
+			//alert client: CHANGE ID
+			messageRequest = ChatRequest{
+				"Chat",
+				chatRequest.Username,
+				"IDINUSE",
+			}
+			jsonRequest, err := json.Marshal(&messageRequest)
+			if err != nil {
+				log.Print(err)
+				break
+			}
+			for i:=0; i<3; i++ {
+				conn.WriteToUDP(jsonRequest, addr)
+			}
+		} else {
+			userIP[chatRequest.Username] = remoteAddr
+			// Send message back
+			messageRequest = ChatRequest{
+				"Chat",
+				chatRequest.Username,
+				remoteAddr,
+			}
+			jsonRequest, err := json.Marshal(&messageRequest)
+			if err != nil {
+				log.Print(err)
+				break
+			}
+			conn.WriteToUDP(jsonRequest, addr)
 		}
-		jsonRequest, err := json.Marshal(&messageRequest)
-		if err != nil {
-			log.Print(err)
-			break
-		}
-		conn.WriteToUDP(jsonRequest, addr)
 	case "Get":
 		// Send message back
                 peerAddr := ""
@@ -84,7 +102,7 @@ func handleClient(conn *net.UDPConn) {
 		messageRequest := ChatRequest{
 			"Chat",
 			chatRequest.Username,
-                        peerAddr,
+			peerAddr,
 		}
 		jsonRequest, err := json.Marshal(&messageRequest)
 		if err != nil {
@@ -95,6 +113,9 @@ func handleClient(conn *net.UDPConn) {
 		if err != nil {
 			log.Print(err)
 		}
+	case "RM":
+		delete(userIP, chatRequest.Username)
+		fmt.Println(chatRequest.Username, "removed!")
 	}
 	fmt.Println("User table:", userIP)
 }

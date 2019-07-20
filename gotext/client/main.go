@@ -6,7 +6,9 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -16,22 +18,21 @@ type ChatRequest struct {
 	Message  string
 }
 
+var username string
+var saddr *net.UDPAddr
+
 func main() {
 	if len(os.Args) < 5 {
 		log.Fatal("Usage: ", os.Args[0], " port serverAddr username peername")
 	}
 	port := fmt.Sprintf(":%s", os.Args[1])
 	serverAddr := os.Args[2]
-	username := os.Args[3]
+	username = os.Args[3]
 	peer := os.Args[4]
 	buf := make([]byte, 2048)
 
 	// Prepare to register user to server.
-	saddr, err := net.ResolveUDPAddr("udp4", serverAddr)
-	if err != nil {
-		log.Print("Resolve server address failed.")
-		log.Fatal(err)
-	}
+	saddr, _ = net.ResolveUDPAddr("udp4", serverAddr)
 
 	// Prepare for local listening.
 	addr, err := net.ResolveUDPAddr("udp4", port)
@@ -44,6 +45,8 @@ func main() {
 		log.Print("Listen UDP failed.")
 		log.Fatal(err)
 	}
+
+	SetupCloseHandler(conn)
 
 	// Send registration information to server.
 	initChatRequest := ChatRequest{
@@ -93,7 +96,10 @@ func main() {
 			log.Print("Unmarshal server response failed.")
 			log.Fatal(err)
 		}
-		if serverResponse.Message != "" {
+		if strings.Contains(serverResponse.Message, "IDINUSE") {
+			fmt.Println("Peer ID already in use")
+			os.Exit(0)
+		} else if serverResponse.Message != "" {
 			break
 		}
 		time.Sleep(10 * time.Second)
@@ -109,25 +115,55 @@ func main() {
 	}
 
 	// Start chatting.
-	write(conn, username, peerAddr)
+	write(conn, peerAddr)
 	go listen(conn)
 
 }
 
-func write(conn *net.UDPConn, username string, peerAddr *net.UDPAddr) {
+func SetupCloseHandler(conn *net.UDPConn) {
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		fmt.Println("\r- Ctrl+C pressed in Terminal")
+		messageRequest := ChatRequest{
+			"RM",
+			username,
+			"",
+		}
+		jsonRequest, err := json.Marshal(messageRequest)
+		if err != nil {
+			log.Print("Error: ", err)
+		}
+		_, _ = conn.WriteToUDP(jsonRequest, saddr)
+		os.Exit(0)
+	}()
+}
+
+func write(conn *net.UDPConn, peerAddr *net.UDPAddr) {
 	for {
 		fmt.Print("Input message: ")
-		var message string
+		message := make([]byte, 4096)
 		fmt.Scanln(&message)
-		if strings.Contains(message, "_exit0") {
-			send(conn, username, "quitting...", peerAddr)
+		if strings.Contains(string(message), "_exit0") {
+			sendChat(conn, "quitting...", peerAddr)
+			messageRequest := ChatRequest{
+				"RM",
+				username,
+				"",
+			}
+			jsonRequest, err := json.Marshal(messageRequest)
+			if err != nil {
+				log.Print("Error: ", err)
+			}
+			_, _ = conn.WriteToUDP(jsonRequest, saddr)
 			os.Exit(0)
 		}
-		send(conn, username, message, peerAddr)
+		sendChat(conn, string(message), peerAddr)
 	}
 }
 
-func send(conn *net.UDPConn, username string, message string, peerAddr *net.UDPAddr) {
+func sendChat(conn *net.UDPConn, message string, peerAddr *net.UDPAddr) {
 	messageRequest := ChatRequest{
 		"Chat",
 		username,
