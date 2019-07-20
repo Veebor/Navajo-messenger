@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -108,40 +109,62 @@ func main() {
 	}
 
 	// Start chatting.
+	write(conn, username, peerAddr)
 	go listen(conn)
+
+}
+
+func write(conn *net.UDPConn, username string, peerAddr *net.UDPAddr) {
 	for {
 		fmt.Print("Input message: ")
-		message := make([]byte, 2048)
+		var message string
 		fmt.Scanln(&message)
-		messageRequest := ChatRequest{
-			"Chat",
-			username,
-			string(message),
+		if strings.Contains(message, "_exit0") {
+			send(conn, username, "quitting...", peerAddr)
+			os.Exit(0)
 		}
-		jsonRequest, err = json.Marshal(messageRequest)
-		if err != nil {
-			log.Print("Error: ", err)
-			continue
-		}
-		conn.WriteToUDP(jsonRequest, peerAddr)
+		send(conn, username, message, peerAddr)
 	}
+}
+
+func send(conn *net.UDPConn, username string, message string, peerAddr *net.UDPAddr) {
+	messageRequest := ChatRequest{
+		"Chat",
+		username,
+		message,
+	}
+	jsonRequest, err := json.Marshal(messageRequest)
+	if err != nil {
+		log.Print("Error: ", err)
+	}
+	_, _ = conn.WriteToUDP(jsonRequest, peerAddr)
 }
 
 func listen(conn *net.UDPConn) {
 	for {
-		buf := make([]byte, 2048)
-		n, _, err := conn.ReadFromUDP(buf)
+		buf := make([]byte, 4096)
+		_, _, err := conn.ReadFromUDP(buf)
 		if err != nil {
 			log.Print(err)
 			continue
 		}
 		// log.Print("Message from ", addr.IP)
-
 		var message ChatRequest
-		err = json.Unmarshal(buf[:n], &message)
+		err = json.Unmarshal(buf, &message)
 		if err != nil {
 			log.Print(err)
 			continue
+		}
+		if strings.Contains(message.Message, "quitting...") {
+			fmt.Println("Exit command received")
+			fmt.Println("Do you want to quit? (Y/N)")
+			var confirmExit string
+			_, _ = fmt.Scanln(&confirmExit)
+			if confirmExit == "Y" {
+				os.Exit(0)
+			} else {
+				continue
+			}
 		}
 		fmt.Println(message.Username, ":", message.Message)
 	}
