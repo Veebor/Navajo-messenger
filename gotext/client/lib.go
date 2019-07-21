@@ -141,6 +141,7 @@ func cleanQuit(conn *net.UDPConn) {
 }
 
 func write(conn *net.UDPConn, message string, peerAddr *net.UDPAddr) {
+		strings.Replace(message, "+_+", " ", -1)
 		if strings.Contains(message, "_exit0") {
 			send(conn, "Chat", "_quitting...0", peerAddr)
 			send(conn, "RM", "", saddr)
@@ -178,5 +179,5 @@ func listen(conn *net.UDPConn) (string, string) {
 	if err != nil {
 		log.Print(err)
 	}
-	return message.Username, message.Message
+	return message.Username, strings.Replace(message.Message, "+_+", " ", -1)
 }
