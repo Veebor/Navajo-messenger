@@ -1,6 +1,7 @@
 package main
 
 import (
+        "bufio"
 	"fmt"
 	"log"
 	"os"
@@ -30,10 +31,10 @@ func main() {
 	fmt.Println("Connected to", peer)
 	go func() {
 		for {
-			message := make([]byte, 4096)
 			fmt.Print("> ")
-			fmt.Scanln(&message)
-			write(conn, string(message), peerAddress)
+                        reader := bufio.NewReader(os.Stdin)
+                        message, _ := reader.ReadString('\n')
+			write(conn, message, peerAddress)
 		}
 	}()
 	go func() {
@@ -43,7 +44,6 @@ func main() {
 			if remMessage == "_quitting...0" {
 				cleanQuit(conn)
 			}
-			fmt.Print("> ")
 		}
 	}()
 	select {}
