@@ -19,14 +19,14 @@ func main() {
 	userIP = map[string]string{}
 	service := ":9999"
 	udpAddr, err := net.ResolveUDPAddr("udp4", service)
-        if err != nil {
-                log.Fatal(err)
-        }
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	conn, err := net.ListenUDP("udp", udpAddr)
-        if err != nil {
-                log.Fatal(err)
-        }
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	for {
 		handleClient(conn)
@@ -74,7 +74,7 @@ func handleClient(conn *net.UDPConn) {
 				log.Print(err)
 				break
 			}
-			for i:=0; i<3; i++ {
+			for i := 0; i < 3; i++ {
 				conn.WriteToUDP(jsonRequest, addr)
 			}
 		} else {
@@ -94,10 +94,10 @@ func handleClient(conn *net.UDPConn) {
 		}
 	case "Get":
 		// Send message back
-                peerAddr := ""
-                if _, ok := userIP[chatRequest.Message]; ok {
-                        peerAddr = userIP[chatRequest.Message]
-                }
+		peerAddr := ""
+		if _, ok := userIP[chatRequest.Message]; ok {
+			peerAddr = userIP[chatRequest.Message]
+		}
 
 		messageRequest := ChatRequest{
 			"Chat",

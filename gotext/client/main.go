@@ -1,10 +1,11 @@
 package main
 
 import (
-        "bufio"
+	"bufio"
 	"fmt"
 	"log"
 	"os"
+	"strings"
 )
 
 var username string
@@ -21,26 +22,32 @@ func main() {
 
 	conn := startServerConn(serverAddr, portLoc)
 
-	registerPeer(conn)
-
 	SetupCloseHandler(conn)
+
+	registerPeer(conn)
 
 	peerAddress := getPeerAddr(conn, peer)
 
 	// Start chatting.
 	fmt.Println("Connected to", peer)
+
 	go func() {
 		for {
 			fmt.Print("> ")
-                        reader := bufio.NewReader(os.Stdin)
-                        message, _ := reader.ReadString('\n')
-			write(conn, message, peerAddress)
+			reader := bufio.NewReader(os.Stdin)
+			message, _ := reader.ReadString('\n')
+			message = strings.TrimRight(message, "\r\n")
+			Write(conn, message, peerAddress)
 		}
 	}()
 	go func() {
 		for {
-			remUser, remMessage := listen(conn)
-			fmt.Println(remUser, "said: ", remMessage)
+			remUser, remMessage, remMessageOK := Receive(conn)
+			if remMessageOK {
+				fmt.Println(remUser, " said: ", remMessage)
+			} else {
+				fmt.Println("Bad message")
+			}
 			if remMessage == "_quitting...0" {
 				cleanQuit(conn)
 			}

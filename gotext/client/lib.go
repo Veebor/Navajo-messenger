@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha1"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -20,12 +21,13 @@ type ChatRequest struct {
 
 var saddr *net.UDPAddr
 
-/*
-func hashSHA256(s string) string {
-	hash := sha256.Sum256([]byte(s))
-	return string(hash[:])
+func HashStr(Txt string) string {
+	h := sha1.New()
+	h.Write([]byte(Txt))
+	bs := h.Sum(nil)
+	sh := string(fmt.Sprintf("%x\n", bs))
+	return sh
 }
-*/
 
 func startServerConn(serverAddress string, localport string) *net.UDPConn {
 	saddr, _ = net.ResolveUDPAddr("udp4", serverAddress)
@@ -80,7 +82,7 @@ func getPeerAddr(conn *net.UDPConn, peer string) *net.UDPAddr {
 		log.Fatal(err)
 	}
 	var serverResponse ChatRequest
-	for i := 0; i < 3; i++ {
+	for {
 		_, err = conn.WriteToUDP(jsonRequest, saddr)
 		if err != nil {
 			log.Println("WriteToServer Error", err)
@@ -101,7 +103,7 @@ func getPeerAddr(conn *net.UDPConn, peer string) *net.UDPAddr {
 		} else if serverResponse.Message != "" {
 			break
 		}
-		time.Sleep(10 * time.Second)
+		time.Sleep(2 * time.Second)
 	}
 	if serverResponse.Message == "" {
 		log.Fatal("Cannot get peer's address")
@@ -127,27 +129,24 @@ func SetupCloseHandler(conn *net.UDPConn) {
 
 func cleanQuit(conn *net.UDPConn) {
 	fmt.Print("Quitting...")
-	messageRequest := ChatRequest{
-		"RM",
-		username,
-		"",
+	for i := 0; i < 3; i++ {
+		send(conn, "RM", username, saddr)
+		time.Sleep(1 * time.Second)
 	}
-	jsonRequest, err := json.Marshal(messageRequest)
-	if err != nil {
-		log.Print("Error: ", err)
-	}
-	_, _ = conn.WriteToUDP(jsonRequest, saddr)
 	os.Exit(0)
 }
 
-func write(conn *net.UDPConn, message string, peerAddr *net.UDPAddr) {
-		if strings.Contains(message, "_exit0") {
-			send(conn, "Chat", "_quitting...0", peerAddr)
-			send(conn, "RM", "", saddr)
-			os.Exit(0)
-		} else {
-			send(conn, "Chat", message, peerAddr)
-		}
+func Write(conn *net.UDPConn, message string, peerAddr *net.UDPAddr) {
+	message = strings.TrimSpace(message)
+	if strings.Contains(message, "_~_") {
+		log.Print("Invalid message. _~_ not allowed")
+	}
+	if strings.Contains(message, "_exit0") {
+		send(conn, "Chat", "_quitting...0", peerAddr)
+		cleanQuit(conn)
+	} else {
+		send(conn, "Chat", message+"_~_"+HashStr(message), peerAddr)
+	}
 }
 
 func send(conn *net.UDPConn, action string, message string, peerAddr *net.UDPAddr) {
@@ -179,4 +178,16 @@ func listen(conn *net.UDPConn) (string, string) {
 		log.Print(err)
 	}
 	return message.Username, message.Message
+}
+
+func Receive(conn *net.UDPConn) (string, string, bool) {
+	var messageOK bool
+	username, message := listen(conn)
+	messageHash := strings.Split(message, "_~_")
+	if HashStr(messageHash[0]) == messageHash[1] {
+		messageOK = true
+	} else {
+		messageOK = false
+	}
+	return username, messageHash[0], messageOK
 }
