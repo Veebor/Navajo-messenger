@@ -58,7 +58,7 @@ func handleClient(conn *net.UDPConn) {
 
 	switch chatRequest.Action {
 	case "New":
-		remoteAddr := fmt.Sprintf("%s:%d", addr.IP, addr.Port)
+		remoteAddr := chatRequest.Message
 		fmt.Println(remoteAddr, "connecting")
 		var messageRequest ChatRequest
 		if _, ok := userIP[chatRequest.Username]; ok {

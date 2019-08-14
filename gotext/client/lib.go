@@ -21,6 +21,8 @@ type ChatRequest struct {
 
 var saddr *net.UDPAddr
 
+var myAddr string
+
 func HashStr(Txt string) string {
 	h := sha1.New()
 	h.Write([]byte(Txt))
@@ -42,6 +44,7 @@ func startServerConn(serverAddress string, localport string) *net.UDPConn {
 		log.Print("Listen UDP failed.")
 		log.Fatal(err)
 	}
+	myAddr = getAddrStun(conn)
 	return conn
 }
 
@@ -50,7 +53,7 @@ func registerPeer(conn *net.UDPConn) {
 	initChatRequest := ChatRequest{
 		"New",
 		username,
-		"",
+		myAddr,
 	}
 	jsonRequest, err := json.Marshal(initChatRequest)
 	if err != nil {
